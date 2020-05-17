@@ -15,7 +15,8 @@ const printUsage = () => {
 
 const download = async (symbols, alpaca, limit = 1000) => {
     try {
-        logger.debug(`Getting data for ${symbols.length} symbols`);
+        logger.info(`Getting data for ${symbols.length} symbols`);
+        logger.debug(symbols);
         const data = await alpaca.getBars(argv.interval, symbols, {limit});
         
         const res = Promise.all(symbols.map(async (symbol) => {
@@ -60,7 +61,7 @@ const main = async () => {
         usePolygon: false
       });
     const symbols = await getSymbols(argv.symbols, argv.symbolsFile);
-    _.chunk(symbols, 50).map(async (chunk) => {
+    _.chunk(symbols, 10).map(async (chunk) => {
         await download(chunk, alpaca);
     });
 };
