@@ -1,13 +1,15 @@
 const Alpaca = require('@alpacahq/alpaca-trade-api')
 const dotenv = require('dotenv');
 const fs = require('fs').promises;
+const argv = require('yargs').argv;
+const _ = require('lodash');
 const logger = require('./logger');
 
-const argv = require('yargs').argv;
+
 
 const printUsage = () => {
     console.log("Usage:");
-    console.log("./run.js --symbols SPY,QQQ --symbolsFile sp500.txt --interval 1min|5min|15min|day");
+    console.log("./run.js --symbols SPY,QQQ --symbolsFile sp500.txt --interval 1Min|5Min|15Min|Day");
 }
 
 
@@ -21,13 +23,17 @@ const download = async (symbols, alpaca, limit = 1000) => {
                 logger.warn(`Skipping '${symbol}'`);
                 return Promise.resolve();
             }
+            const d = {};
+            d[symbol] = data[symbol];
             logger.info(`Writing ${data[symbol].length} lines ${symbol}.json`);
-            await fs.writeFile(`${symbol}.json`, JSON.stringify(data[symbol], null, 2));
+            await fs.writeFile(`${symbol}.json`, JSON.stringify(d, null, 2));
         }));
     } catch(err) {
         logger.error(err);
     }
 }
+
+
 
 const getSymbols = async (symbolsList, symbolsFile) => {    
     if (symbolsList) {
@@ -45,7 +51,7 @@ const main = async () => {
         printUsage();
         process.exit(1)
     }
-    const {parsed: cfg} = dotenv.config();    
+    const {parsed: cfg} = dotenv.config({path: `${__dirname}/.env`});    
     logger.info(`Using config config ${JSON.stringify(cfg)}`); 
     const alpaca = new Alpaca({
         keyId: cfg['KEY_ID'],
@@ -54,7 +60,9 @@ const main = async () => {
         usePolygon: false
       });
     const symbols = await getSymbols(argv.symbols, argv.symbolsFile);
-    const res = await download(symbols, alpaca);
+    _.chunk(symbols, 50).map(async (chunk) => {
+        await download(chunk, alpaca);
+    });
 };
 
 main();
