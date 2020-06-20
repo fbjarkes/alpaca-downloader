@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 const Alpaca = require('@alpacahq/alpaca-trade-api')
 const dotenv = require('dotenv');
 const fs = require('fs').promises;
@@ -9,7 +11,7 @@ const logger = require('./logger');
 
 const printUsage = () => {
     console.log("Usage:");
-    console.log("./run.js --symbols SPY,QQQ --symbolsFile sp500.txt --interval 1Min|5Min|15Min|Day");
+    console.log("./run.js --symbols SPY,QQQ --symbolsFile sp500.txt --interval 1Min|5Min|15Min|Day --limit 1000");
 }
 
 
@@ -34,8 +36,6 @@ const download = async (symbols, alpaca, limit = 1000) => {
     }
 }
 
-
-
 const getSymbols = async (symbolsList, symbolsFile) => {    
     if (symbolsList) {
         let symbols = symbolsList.split(',');
@@ -46,6 +46,7 @@ const getSymbols = async (symbolsList, symbolsFile) => {
         return data.toString().split('\n').filter(s => s !== '');
     }
 }
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const main = async () => {
     if (!(argv.symbols || argv.symbolsFile) || !argv.interval) {
@@ -61,8 +62,8 @@ const main = async () => {
         usePolygon: false
       });
     const symbols = await getSymbols(argv.symbols, argv.symbolsFile);
-    _.chunk(symbols, 10).map(async (chunk) => {
-        await download(chunk, alpaca);
+    _.chunk(symbols, 100).map(async (chunk) => {        
+        await download(chunk, alpaca, argv.limit);
     });
 };
 
