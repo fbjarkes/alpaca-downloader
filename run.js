@@ -28,7 +28,7 @@ const download = async (symbols, alpaca, limit = 1000) => {
             }
             const d = {};
             d[symbol] = data[symbol];
-            logger.info(`Writing ${data[symbol].length} lines ${symbol}.json`);
+            logger.info(`Writing ${data[symbol].length} bars ${symbol}.json`);
             await fs.writeFile(`${symbol}.json`, JSON.stringify(d, null, 2));
         }));
     } catch(err) {
@@ -43,7 +43,7 @@ const getSymbols = async (symbolsList, symbolsFile) => {
     } else {
         logger.info(`Reading symbols from file ${symbolsFile}`);
         const data = await fs.readFile(symbolsFile);
-        return data.toString().split('\n').filter(s => s !== '');
+        return data.toString().split('\n').filter(s => (!(s === '' || s.includes('/') || s.startsWith('#'))));        
     }
 }
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
