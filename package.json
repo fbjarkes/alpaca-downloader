@@ -14,9 +14,9 @@
     "test": "mocha tests/unit/"
   },
   "devDependencies": {
-    "yargs": "^15.3.1",
     "babel-eslint": "^10.1.0",
     "eslint": "^7.32.0",
-    "eslint-config-airbnb": "^18.2.1"
+    "eslint-config-airbnb": "^18.2.1",
+    "yargs": "^15.3.1"
   }
 }
