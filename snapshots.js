@@ -8,6 +8,7 @@ const {getSymbols} = require('./utils');
 const logger = require('./logger');
 
 
+// eslint-disable-next-line no-undef
 const {parsed: cfg} = dotenv.config({path: `${__dirname}/.env`});    
 
 
@@ -55,10 +56,10 @@ const downloadSnapshot = async (symbols, alpaca) => {
         paper: true,
         usePolygon: false
     });
-    
+    const concurrentSymbols = parseInt(cfg['CONCURRENT_SYMBOLS']) || 100;
     const symbols = await getSymbols(argv.symbols, argv.symbolsFile);	
     R.pipe(
-        R.splitEvery(2),
+        R.splitEvery(concurrentSymbols),
         R.map(chunk => downloadAndSaveChunk(chunk, alpaca))
     )(symbols);    
     
