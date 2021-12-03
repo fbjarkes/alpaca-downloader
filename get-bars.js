@@ -39,17 +39,18 @@ const getDefaultStart = (timeframe) => {
     }
 }
 
-// Create a RFC3339 date string with EST/DST timezone
+// Create a RFC3339 date string
 const createRFC3339DateString = (date) => {
+    // TODO: always return UTC (Zulu), so just remove 4 or 5 hours depending on DST/EST
     let str;
     if (date.length === 10) {
-        str = `${date}T00:00:00`; 
+        str = `${date}T00:00:00Z`; 
     } else if (date.length === 16) {
-        str = `${date.substr(0, 10)}T${date.substr(11, 16)}:00`;
+        // TODO: substract hours
+        str = `${date.substr(0, 10)}T${date.substr(11, 16)}:00Z`;
     } else {
         throw Error(`Invalid date format: '${date}'`);
     }
-    str += '-05:00'; // TODO: handle DST
     return str;
 };
 
@@ -65,13 +66,13 @@ const transformBarData = (barData) => {
 }
 
 // Returns JSON object with symbol and array with OHLC data: { symbol: "AAPL", bars: [ {"Open": .., "High": .., "Low": .., "Close": .., "Volume": ..}]}
-const getBars = async (symbol, alpaca, {start, end, timeframe, limit}) => {
+const getBars = async (symbol, alpaca, {start, end, timeframe, limit, bulkDownload}) => {
     const bars = []
     const data = {
         symbol,
         bars
     }
-    try {        
+    try {
         let res = alpaca.getBarsV2(
             symbol,
             {
@@ -81,29 +82,38 @@ const getBars = async (symbol, alpaca, {start, end, timeframe, limit}) => {
                 timeframe,
                 adjustment: 'all'
             },
-          );
+        );                
         for await (let b of res){
             bars.push(transformBarData(b));                        
-        }        
-    } catch (error) {
+        }
+        
+        // TODO: 
+        // if bulkDownload:
+        //      while last bar timestamp < end:
+        //          set start to last bar timestamp + 1min (if 1min timeframe) and call getBars again
+        // NOTE: need to convert between UTC to compare to end??
+    } catch (error) {        
         logger.error(`${symbol}: ${error}`); // 422 error likely due to erroneous start/end parameter
     } 
     return data;
 };
 
 const saveToFile = async (barsForSymbol) => {
-    // TODO: skip writing if no bar data is available   
     // Write JSON object with symbol and array with OHLCV data:
     // { "AAPL": [ 
     //  {"Open": .., "High": .., "Low": .., "Close": .., "Volume": ..},
     //  {"Open": .., "High": .., "Low": .., "Close": .., "Volume": ..},
     //  {"Open": .., "High": .., "Low": .., "Close": .., "Volume": ..}
     // ]}
-    const data = {};    
-    data[barsForSymbol.symbol] = barsForSymbol.bars; 
-    const str = JSON.stringify(data, null, 2);
-    await fs.writeFile(`${barsForSymbol.symbol}.json`, str);
-    logger.info(`Wrote file (${Math.round(str.length / 1024, 0)}kb) '${barsForSymbol.symbol}.json'`);
+    const data = {};
+    data[barsForSymbol.symbol] = barsForSymbol.bars;
+    if (barsForSymbol.bars.length === 0) {
+        logger.info(`No data for '${barsForSymbol.symbol}'. Skipping.`);
+    } else {
+        const str = JSON.stringify(data, null, 2);
+        await fs.writeFile(`${barsForSymbol.symbol}.json`, str);
+        logger.info(`Wrote file (${Math.round(str.length / 1024, 0)}kb) '${barsForSymbol.symbol}.json'`);
+    }    
 }
 
 const downloadAndSaveChunk = async (symbols, alpaca, options) => {
