@@ -4,9 +4,10 @@ const Alpaca = require("@alpacahq/alpaca-trade-api");
 const dotenv = require('dotenv');
 const fs = require('fs').promises;
 const argv = require('yargs').argv;
-const {getSymbols} = require('./utils');
+const {getSymbols, sleep} = require('./utils');
 const logger = require('./logger');
 
+const CONCURRENT_REQUESTS = 500;
 
 // eslint-disable-next-line no-undef
 const {parsed: cfg} = dotenv.config({path: `${__dirname}/.env`});    
@@ -19,6 +20,7 @@ const printUsage = () => {
 
 const downloadAndSaveChunk = async (chunk, alpaca) => {
     try {
+        logger.info(`Downloading snapshot for ${chunk.length} symbols`);
         const snapshots = await downloadSnapshot(chunk, alpaca);        
         await Promise.allSettled (snapshots.map(saveToFile));
     } catch (err) {        
@@ -56,11 +58,12 @@ const downloadSnapshot = async (symbols, alpaca) => {
         paper: true,
         usePolygon: false
     });
-    const concurrentSymbols = parseInt(cfg['CONCURRENT_SYMBOLS']) || 100;
+    
     const symbols = await getSymbols(argv.symbols, argv.symbolsFile);	
-    R.pipe(
-        R.splitEvery(concurrentSymbols),
-        R.map(chunk => downloadAndSaveChunk(chunk, alpaca))
-    )(symbols);    
+    const chunks = R.splitEvery(CONCURRENT_REQUESTS, symbols);
+    for (let chunk of chunks) {        
+        await downloadAndSaveChunk(chunk, alpaca);
+        await sleep(100);
+    }
     
 })();
