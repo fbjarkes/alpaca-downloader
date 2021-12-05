@@ -12,7 +12,8 @@
   },
   "scripts": {
     "lint": "eslint **/*.js --fix",
-    "test": "mocha tests/unit/"
+    "test": "mocha tests/unit/",
+    "nuke": "rm -rf node_modules package-lock.json yarn.lock"
   },
   "devDependencies": {
     "babel-eslint": "^10.1.0",
