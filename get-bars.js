@@ -5,7 +5,7 @@ const dotenv = require('dotenv');
 const argv = require('yargs').argv;
 const fs = require('fs').promises;
 const logger = require('./logger');
-const { getSymbols } = require('./utils');
+const { getSymbols, sleep } = require('./utils');
 
 const VALID_TIMEFRAMES = ['1min', '15min', '60min', 'day'];
 const TIMEFRAME_MAPPING = {
@@ -14,6 +14,7 @@ const TIMEFRAME_MAPPING = {
     '60min': '1Hour',
     'day': '1Day'
 }
+const CONCURRENT_REQUESTS = 100;
 
 // eslint-disable-next-line no-undef
 const {parsed: cfg} = dotenv.config({path: `${__dirname}/.env`});    
@@ -67,6 +68,7 @@ const transformBarData = (barData) => {
 
 // Returns JSON object with symbol and array with OHLC data: { symbol: "AAPL", bars: [ {"Open": .., "High": .., "Low": .., "Close": .., "Volume": ..}]}
 const getBars = async (symbol, alpaca, {start, end, timeframe, limit, bulkDownload}) => {
+    logger.info(`getBarsV2: symbol=${symbol}, start=${start}, end=${end}`);
     const bars = []
     const data = {
         symbol,
@@ -163,9 +165,10 @@ const downloadAndSaveChunk = async (symbols, alpaca, options) => {
         usePolygon: false
       });
 
-    const symbols = await getSymbols(argv.symbols, argv.symbolsFile);	
-    R.pipe(
-        R.splitEvery(100),
-        R.map(chunk => downloadAndSaveChunk(chunk, alpaca, options))
-    )(symbols);
+    const symbols = await getSymbols(argv.symbols, argv.symbolsFile);
+    const chunks = R.splitEvery(CONCURRENT_REQUESTS, symbols);
+    for (let chunk of chunks) {        
+        await downloadAndSaveChunk(chunk, alpaca, options);
+        await sleep(500);
+    }
 })();

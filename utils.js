@@ -13,6 +13,10 @@ const getSymbols = async (symbolsList, symbolsFile) => {
 	}
 };
 
+// eslint-disable-next-line no-undef
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 module.exports = {
-	getSymbols
+	getSymbols,
+	sleep
 };
