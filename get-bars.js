@@ -68,7 +68,7 @@ const transformBarData = (barData) => {
 
 // Returns JSON object with symbol and array with OHLC data: { symbol: "AAPL", bars: [ {"Open": .., "High": .., "Low": .., "Close": .., "Volume": ..}]}
 const getBars = async (symbol, alpaca, {start, end, timeframe, limit, bulkDownload}) => {
-    logger.info(`getBarsV2: symbol=${symbol}, start=${start}, end=${end}`);
+    logger.debug(`getBarsV2: symbol=${symbol}, start=${start}, end=${end}`);
     const bars = []
     const data = {
         symbol,
