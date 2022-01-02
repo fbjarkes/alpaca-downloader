@@ -27,7 +27,7 @@ const printUsage = () => {
 const getDefaultStart = (timeframe) => {
     const epoch = new Date().getTime();
     if (timeframe === '1min') {
-        return new Date(epoch - 24 * 60 * 60 * 1000); // 1 day
+        return new Date(epoch - 5 * 24 * 60 * 60 * 1000); // 1 day
     }
     if (timeframe === '15min') {
         return new Date(epoch - 7 * 24 * 60 * 60 * 1000); // 1 week
