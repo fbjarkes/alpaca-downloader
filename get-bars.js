@@ -159,14 +159,14 @@ const downloadAndSaveChunk = async (symbols, alpaca, options) => {
     let options;
     if (argv.start && argv.end) {
         options = {
-            timeframe: TIMEFRAME_MAPPING[argv.timeframe],
+            timeframe,
             limit: 10000,
             start: createRFC3339DateString(argv.start),
             end: createRFC3339DateString(argv.end)
         };
     } else if (argv.days) {
         options = {
-            timeframe: TIMEFRAME_MAPPING[argv.timeframe],
+            timeframe,
             //limit: 100000,
             start: new Date(new Date().getTime() - argv.days * 24 * 60 * 60 * 1000), // start 'days' ago
             end: new Date().toISOString() // end now
@@ -174,7 +174,7 @@ const downloadAndSaveChunk = async (symbols, alpaca, options) => {
     } else {
         // Options for non-bulk download
         options = {
-            timeframe: TIMEFRAME_MAPPING[argv.timeframe],
+            timeframe,
             limit: 10000,
             start: getDefaultStart(argv.timeframe).toISOString(),
             end: new Date().toISOString()
