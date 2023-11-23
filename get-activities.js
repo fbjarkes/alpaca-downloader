@@ -3,6 +3,7 @@ const argv = require('yargs').argv;
 const Alpaca = require('@alpacahq/alpaca-trade-api');
 const logger = require('./logger');
 const { getSymbols, sleep } = require('./utils');
+const { o } = require('ramda');
 
 
 
@@ -32,8 +33,75 @@ const printUsage = () => {
     );
 };
 
+class ClosedTrade {    
+    constructor({
+        symbol,
+        entry_price, // avg entry price
+        qty,
+        pnl,
+        entry_date, // first entry
+        exit_date, // last entry
+    }) {
+        this.symbol = symbol;
+        this.entryPrice = entry_price;
+        this.qty = qty;
+        this.pnl = pnl;
+        this.entryDate = entry_date;
+        this.exitDate = exit_date;
+    }
+}
 
 class Trade {
+    constructor({
+        price,
+        qty,
+        datetime,
+        type,
+    }) {    
+        this.price = price;
+        this.qty = qty;
+        this.datetime = datetime;
+        this.type = type;
+    }
+}
+
+class OpenTrade {
+        
+    qty = 0;
+    totalQty = 0;    
+    totalPnl = 0;
+    firstEntryDate = null;
+    lastEntryDate = null;
+    avgCostPerUnit = 0;
+    totalCost = 0;
+
+    constructor(symbol) {
+        this.symbol = symbol;
+    }
+
+    add(tradeActivity) {                        
+        if (this.qty === 0) {
+            this.firstEntryDate = tradeActivity.transactionTime;
+        }        
+        this.qty += tradeActivity.qty;
+        this.totalCost += (tradeActivity.qty * tradeActivity.price);
+        this.totalQty += tradeActivity.qty;
+        this.avgCostPerUnit = this.totalCost / this.totalQty;        
+    }
+
+    reduce(tradeActivity) {        
+        const pnl = tradeActivity.qty * (tradeActivity.price - this.avgCostPerUnit);
+        
+
+        this.totalPnl += pnl;        
+        this.qty -= tradeActivity.qty;        
+        if (this.qty === 0) {
+            this.lastEntryDate = tradeActivity.transactionTime;
+        }        
+    }
+}
+
+class TradeActivity {
     constructor({
       id,
       activity_type,
@@ -68,6 +136,7 @@ class Trade {
 
 (async () => {
 
+    
     let options;
     if (argv.start && argv.end) {
         options = {
@@ -93,9 +162,11 @@ class Trade {
         usePolygon: false
     });
     const activityTypes = 'FILL';
-    const max_limit = 500;
+    const max_limit = 2000;
     const pageSize = 100;
     const trades = [];
+    const tradesBySymbol = {};
+    const closedTrades = [];
     
     try {
         let pageToken = undefined; // TODO: pagination only when date is not specified?
@@ -105,17 +176,67 @@ class Trade {
             console.log(`getAccount(${activityTypes}, ${pageSize}, ${pageToken}): ${activities.length} activities`);
 
             for (let activity of activities) {
-                trades.push(new Trade(activity));
+                const t = new TradeActivity(activity);
+                trades.push(t);
+                if (!tradesBySymbol[t.symbol]) {
+                    tradesBySymbol[t.symbol] = [];
+                }
+                tradesBySymbol[t.symbol].push(t);
             }
             pageToken = activities?.[activities.length - 1]?.id || undefined;
 
         } while (trades.length < max_limit && pageToken);
         
-        console.log("Trades:");
+        console.log("Trades:");        
         for (let trade of trades) {
-            console.log(`[${trade.transactionTime}] ${trade.symbol}: ${trade.side} ${trade.qty} @ ${trade.price}`);
+            console.log(`[${trade.transactionTime}] ${trade.symbol}: ${trade.side} ${trade.qty} @ ${trade.price}`);            
         }
-                
+        
+        Object.entries(tradesBySymbol).forEach(([symbol, trades]) => { 
+            //trades.sort((a, b) => a.transactionTime - b.transactionTime);
+            
+            let openTrade = null;
+            //console.log(symbol);
+            const tradesReversed = [...trades].reverse();
+            //console.log(tradesReversed);
+            
+            tradesReversed.forEach((tradeActivity) => {
+                //console.log(`[${symbol}]: Processing ${tradeActivity.transactionTime} ${tradeActivity.side} ${tradeActivity.qty} @ ${tradeActivity.price}`);
+                if (openTrade) {
+                    if (tradeActivity.side === 'buy') {
+                        openTrade.add(tradeActivity);
+                    }
+                    if (tradeActivity.side === 'sell') {
+                        openTrade.reduce(tradeActivity);
+                    }
+                    if (openTrade.qty === 0) {
+                        const c = new ClosedTrade({entry_date: openTrade.firstEntryDate, exit_date: openTrade.lastEntryDate, 
+                            symbol: symbol, qty: openTrade.totalQty, pnl: openTrade.totalPnl, 
+                            avgEntry: openTrade.avgCostPerUnit});
+                        console.log(`${symbol}: ClosedTrade: ${c.qty} @ ${c.entryPrice} -> ${c.exitPrice} = ${c.pnl}`);
+                        closedTrades.push(c);
+                        openTrade = null;
+                    }
+                } else {
+                    if (tradeActivity.side === 'buy') {
+                        openTrade = new OpenTrade(symbol);
+                        openTrade.add(tradeActivity);
+                    }
+                    if (tradeActivity.side === 'sell') {
+                        console.log(`${symbol}: ${tradeActivity.transactionTime} ${tradeActivity.side} ${tradeActivity.qty} @ ${tradeActivity.price} No buy to connect to. Skipping.`);
+                    }
+                }
+            });
+        });
+        
+        console.log("Closed Trades:");
+        let totalPnl = 0;
+        closedTrades.forEach((closedTrade) => {
+            console.log(`[${closedTrade.symbol}] ${closedTrade.entryDate}-${closedTrade.exitDate}:  ${closedTrade.qty} @ ${closedTrade.entryPrice} -> ${closedTrade.exitPrice} = ${closedTrade.pnl}`);
+            totalPnl += closedTrade.pnl;
+        });
+        console.log("Total PnL: ", totalPnl);
+             
     } catch (error) {
         console.log(error);
         //logger.error(error); 
