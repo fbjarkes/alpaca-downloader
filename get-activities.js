@@ -93,22 +93,32 @@ class Trade {
         usePolygon: false
     });
     const activityTypes = 'FILL';
-    const limit = 10;
+    const max_limit = 500;
+    const pageSize = 100;
     const trades = [];
     
     try {
-        const activities = await alpaca.getAccountActivities({activityTypes, pageSize: limit});        
-        console.log(`Got ${activities.length} activities`);
-        for (let activity of activities) {
-            trades.push(new Trade(activity));
-        }
+        let pageToken = undefined; // TODO: pagination only when date is not specified?
+        let activities = [];
+        do {            
+            activities = await alpaca.getAccountActivities({ activityTypes, pageSize, pageToken });
+            console.log(`getAccount(${activityTypes}, ${pageSize}, ${pageToken}): ${activities.length} activities`);
+
+            for (let activity of activities) {
+                trades.push(new Trade(activity));
+            }
+            pageToken = activities?.[activities.length - 1]?.id || undefined;
+
+        } while (trades.length < max_limit && pageToken);
         
+        console.log("Trades:");
         for (let trade of trades) {
             console.log(`[${trade.transactionTime}] ${trade.symbol}: ${trade.side} ${trade.qty} @ ${trade.price}`);
         }
                 
     } catch (error) {
-        logger.error(error); 
+        console.log(error);
+        //logger.error(error); 
     }
     
 })();
