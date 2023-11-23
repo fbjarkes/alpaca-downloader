@@ -7,13 +7,7 @@ const fs = require('fs').promises;
 const logger = require('./logger');
 const { getSymbols, sleep } = require('./utils');
 
-const VALID_TIMEFRAMES = [ '1min', '15min', '60min', 'day' ];
-const TIMEFRAME_MAPPING = {
-    '1min': '1Min',
-    '15min': '15Min',
-    '60min': '1Hour',
-    day: '1Day'
-};
+
 const CONCURRENT_REQUESTS = 100;
 
 // eslint-disable-next-line no-undef
@@ -26,20 +20,42 @@ const printUsage = () => {
     );
 };
 
+const createTimeframeString = (timeframe) => {
+    if (!timeframe) {
+        return '';
+    }
+    let lowerTimeframe = timeframe.toLowerCase();
+    if (lowerTimeframe === 'day') {
+        return '1Day';
+    }
+    if (lowerTimeframe === 'week') {
+        return '1Week';
+    }
+    let numericPart = parseInt(lowerTimeframe.replace('min', ''), 10);
+    if (isNaN(numericPart)) {
+        return '';
+    }
+    if (numericPart < 60) {
+        return `${numericPart}Min`;
+    } else {
+        let hours = numericPart / 60;
+        return `${hours}Hour`;
+    }
+};
+
+
 const getDefaultStart = (timeframe) => {
     const epoch = new Date().getTime();
     if (timeframe === '1min') {
         return new Date(epoch - 5 * 24 * 60 * 60 * 1000); // 1 day
-    }
-    if (timeframe === '15min') {
-        return new Date(epoch - 7 * 24 * 60 * 60 * 1000); // 1 week
-    }
+    }    
     if (timeframe === '60min') {
         return new Date(epoch - 30 * 24 * 60 * 60 * 1000); // 30 days
     }
     if (timeframe === 'day') {
         return new Date(epoch - 360 * 24 * 60 * 60 * 1000); // 1 year
     }
+    return new Date(epoch - 7 * 24 * 60 * 60 * 1000); // 1 week
 };
 
 // Create a RFC3339 date string
@@ -133,12 +149,13 @@ const downloadAndSaveChunk = async (symbols, alpaca, options) => {
         printUsage();
         return 0;
     }
-    if (!VALID_TIMEFRAMES.includes(argv.timeframe)) {
-        console.log('Missing valid --timeframe parameter', 'Valid: ', VALID_TIMEFRAMES);
+    let timeframe = createTimeframeString(argv.timeframe);
+    if (!timeframe) {
+        console.log(`Invalid --timeframe parameter '${argv.timeframe}'`);
         printUsage();
         return 0;
     }
-
+    
     let options;
     if (argv.start && argv.end) {
         options = {
