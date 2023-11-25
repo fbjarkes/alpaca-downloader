@@ -211,12 +211,23 @@ class TradeActivity {
         });
         console.log(`Closed trades (${closedTrades.length}):`);
         let totalPnl = 0;
+        let wins = 0;
+        let losses = 0;
         closedTrades.forEach((closedTrade) => {
             console.log(`[${closedTrade.symbol}] ${closedTrade.entryDate}-${closedTrade.exitDate}:  ${closedTrade.qty} @ ${closedTrade.entryPrice} -> ${closedTrade.exitPrice} = ${closedTrade.pnl}`);
             totalPnl += closedTrade.pnl;
+            if (closedTrade.pnl > 0) {
+                wins++;
+            } else {
+                losses++;
+            }
         });
-        console.log("Total PnL: ", totalPnl);
-             
+
+        console.log("Stats:");
+        console.log(`Total PnL: ${totalPnl}`);
+        console.log(`Winrate (%): ${(wins / (wins + losses)) * 100}`);
+        console.log(`Total trades: ${closedTrades.length}`);
+
     } catch (error) {
         logger.error(error); 
     }
