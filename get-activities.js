@@ -27,25 +27,17 @@ const printUsage = () => {
     );
 };
 
-class ClosedTrade {    
-    constructor({
-        symbol,
-        entryPrice, // first entry price
-        exitPrice, // last exit price
-        avgEntry,
-        qty,
-        pnl,
-        entryDate, // first entry
-        exitDate, // last entry
-    }) {
-        this.symbol = symbol;
-        this.entryPrice = entryPrice;
-        this.exitPrice = exitPrice;
-        this.avgEntry = avgEntry;
-        this.qty = qty;
-        this.pnl = pnl;
-        this.entryDate = entryDate;
-        this.exitDate = exitDate;
+class ClosedTrade {
+    constructor(trade) {
+      const { symbol, entryPrice, exitPrice, avgEntry, qty, pnl, entryDate, exitDate } = trade;
+      this.symbol = symbol;
+      this.entryPrice = entryPrice;
+      this.exitPrice = exitPrice;
+      this.avgEntry = avgEntry;
+      this.qty = qty;
+      this.pnl = pnl;
+      this.entryDate = entryDate;
+      this.exitDate = exitDate;
     }
 }
 
@@ -115,31 +107,22 @@ class TradeActivity {
       this.cumQty = parseInt(cum_qty);
       this.orderStatus = order_status;
     }
-  
-    // You can add methods or additional logic related to the Trade class here
+
   }
 
 
 (async () => {
     
-    
+    const { date, start } = argv;
     const options = {
         activityTypes: 'FILL',
+        pageToken: undefined,
         pageSize: 100,
+        //after: days ? new Date(new Date().getTime() - days * 24 * 60 * 60 * 1000) : undefined,
+        date: date ? new Date(date) : undefined,
+        after: start ? new Date(start) : undefined,
+        //until: // TODO: filter trades after fetching all instead
     };
-    if (argv.days) {
-        options.after = new Date(new Date().getTime() - argv.days * 24 * 60 * 60 * 1000); // start 'days' ago
-    }
-    if (argv.date) {
-        options.date = new Date(argv.date);
-    }
-    if (argv.start) {
-        options.after = new Date(argv.start);
-    } 
-    if (argv.end) {
-        // TODO: filter trades after fetching all instead
-        //options.until = new Date(argv.end); 
-    }
 
     const alpaca = new Alpaca({
         keyId: cfg['KEY_ID'],
@@ -147,21 +130,20 @@ class TradeActivity {
         paper: true,
         usePolygon: false
     });
-    //options.activityTypes = 'FILL'
-    //const activityTypes = 'FILL';    
-    const max_limit = 100_000; // TODO: needed?
-    //const pageSize = 100;
+    
+    const max_limit = 100_000; // TODO: needed?    
     const trades = [];
     const tradesBySymbol = {};
     const closedTrades = [];
+    const openTrades = [];
     
-    console.log(`Fetching activities with options: ${Object.entries(options).map(([key, value]) => `${key}=${value}`).join(',')}`);
-    try {
-        let pageToken = undefined;
+    console.log(`Fetching activities with options: ${JSON.stringify(options)}`);
+    try {        
         let activities = [];
         do {                    
-            activities = await alpaca.getAccountActivities({ activityTypes: options.activityTypes, pageSize: options.pageSize, pageToken, after: options.after, date: options.date, before: options.before  });
-            logger.debug(`getAccount(${Object.entries(options).map(([key, value]) => `${key}=${value}`).join(',')})`);
+            //activities = await alpaca.getAccountActivities({ activityTypes: options.activityTypes, pageSize: options.pageSize, pageToken, after: options.after, date: options.date, before: options.before  });
+            activities = await alpaca.getAccountActivities({ activityTypes: options.activityTypes, pageSize: options.pageSize, pageToken: options.pageToken, after: options.after, date: options.date, before: options.before  });
+            logger.debug(`getAccount(${JSON.stringify(options)})`);
             for (let activity of activities) {
                 const t = new TradeActivity(activity);
                 trades.push(t);
@@ -170,9 +152,9 @@ class TradeActivity {
                 }
                 tradesBySymbol[t.symbol].push(t);
             }
-            pageToken = activities?.[activities.length - 1]?.id || undefined;
+            options.pageToken = activities?.[activities.length - 1]?.id || undefined;
 
-        } while (trades.length < max_limit && pageToken);
+        } while (trades.length < max_limit && options.pageToken);
         
         logger.debug("Trades:");        
         for (let trade of trades) {
@@ -206,12 +188,18 @@ class TradeActivity {
                     }
                     if (tradeActivity.side === 'sell') {
                         logger.debug(`${symbol}: ${tradeActivity.transactionTime} ${tradeActivity.side} ${tradeActivity.qty} @ ${tradeActivity.price} No buy to connect to. Skipping.`);
+                        openTrades.push(tradeActivity);
                     }
                 }
             });
         });
         
-        console.log("Closed Trades:");
+        // TODO: print in nicely formatted tabular form
+        console.log(`Unhandled activities (${openTrades.length}):`);
+        openTrades.forEach((openTrade) => {
+            console.log(`[${openTrade.symbol}] ${openTrade.transactionTime}: ${openTrade.side} ${openTrade.qty} @ ${openTrade.price}`);
+        });
+        console.log(`Closed trades (${closedTrades.length}):`);
         let totalPnl = 0;
         closedTrades.forEach((closedTrade) => {
             console.log(`[${closedTrade.symbol}] ${closedTrade.entryDate}-${closedTrade.exitDate}:  ${closedTrade.qty} @ ${closedTrade.entryPrice} -> ${closedTrade.exitPrice} = ${closedTrade.pnl}`);
@@ -220,8 +208,7 @@ class TradeActivity {
         console.log("Total PnL: ", totalPnl);
              
     } catch (error) {
-        console.log(error);
-        //logger.error(error); 
+        logger.error(error); 
     }
     
 })();
