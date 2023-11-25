@@ -1,11 +1,20 @@
 const dotenv = require('dotenv');
-const argv = require('yargs').argv;
 const Alpaca = require('@alpacahq/alpaca-trade-api');
 const logger = require('./logger');
-const { getSymbols, sleep } = require('./utils');
-const { o } = require('ramda');
+const argv = require('yargs')
+  .option('verbose', {
+    alias: 'v',
+    describe: 'Enable verbose logging',
+    type: 'boolean',
+    default: false,
+  })
+  .argv;
 
-
+if (argv.verbose) {
+    logger.level = 'debug'
+} else {
+    logger.level = 'info'
+}
 
 // eslint-disable-next-line no-undef
 const { parsed: cfg } = dotenv.config({ path: `${__dirname}/.env` });
@@ -135,7 +144,7 @@ class TradeActivity {
 
 
 (async () => {
-
+    
     
     let options;
     if (argv.start && argv.end) {
@@ -162,7 +171,7 @@ class TradeActivity {
         usePolygon: false
     });
     const activityTypes = 'FILL';
-    const max_limit = 2000;
+    const max_limit = 500;
     const pageSize = 100;
     const trades = [];
     const tradesBySymbol = {};
@@ -173,7 +182,7 @@ class TradeActivity {
         let activities = [];
         do {            
             activities = await alpaca.getAccountActivities({ activityTypes, pageSize, pageToken });
-            console.log(`getAccount(${activityTypes}, ${pageSize}, ${pageToken}): ${activities.length} activities`);
+            logger.debug(`getAccount(${activityTypes}, ${pageSize}, ${pageToken}): ${activities.length} activities`);
 
             for (let activity of activities) {
                 const t = new TradeActivity(activity);
@@ -187,21 +196,16 @@ class TradeActivity {
 
         } while (trades.length < max_limit && pageToken);
         
-        console.log("Trades:");        
+        logger.debug("Trades:");        
         for (let trade of trades) {
-            console.log(`[${trade.transactionTime}] ${trade.symbol}: ${trade.side} ${trade.qty} @ ${trade.price}`);            
+            logger.debug(`[${trade.transactionTime}] ${trade.symbol}: ${trade.side} ${trade.qty} @ ${trade.price}`);            
         }
         
-        Object.entries(tradesBySymbol).forEach(([symbol, trades]) => { 
-            //trades.sort((a, b) => a.transactionTime - b.transactionTime);
-            
-            let openTrade = null;
-            //console.log(symbol);
+        Object.entries(tradesBySymbol).forEach(([symbol, trades]) => {         
+            let openTrade = null;            
             const tradesReversed = [...trades].reverse();
-            //console.log(tradesReversed);
             
-            tradesReversed.forEach((tradeActivity) => {
-                //console.log(`[${symbol}]: Processing ${tradeActivity.transactionTime} ${tradeActivity.side} ${tradeActivity.qty} @ ${tradeActivity.price}`);
+            tradesReversed.forEach((tradeActivity) => {                
                 if (openTrade) {
                     if (tradeActivity.side === 'buy') {
                         openTrade.add(tradeActivity);
@@ -213,7 +217,7 @@ class TradeActivity {
                         const c = new ClosedTrade({entry_date: openTrade.firstEntryDate, exit_date: openTrade.lastEntryDate, 
                             symbol: symbol, qty: openTrade.totalQty, pnl: openTrade.totalPnl, 
                             avgEntry: openTrade.avgCostPerUnit});
-                        console.log(`${symbol}: ClosedTrade: ${c.qty} @ ${c.entryPrice} -> ${c.exitPrice} = ${c.pnl}`);
+                        logger.debug(`${symbol}: ClosedTrade: ${c.qty} @ ${c.entryPrice} -> ${c.exitPrice} = ${c.pnl}`);
                         closedTrades.push(c);
                         openTrade = null;
                     }
@@ -223,7 +227,7 @@ class TradeActivity {
                         openTrade.add(tradeActivity);
                     }
                     if (tradeActivity.side === 'sell') {
-                        console.log(`${symbol}: ${tradeActivity.transactionTime} ${tradeActivity.side} ${tradeActivity.qty} @ ${tradeActivity.price} No buy to connect to. Skipping.`);
+                        logger.debug(`${symbol}: ${tradeActivity.transactionTime} ${tradeActivity.side} ${tradeActivity.qty} @ ${tradeActivity.price} No buy to connect to. Skipping.`);
                     }
                 }
             });
