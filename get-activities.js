@@ -20,21 +20,6 @@ if (argv.verbose) {
 const { parsed: cfg } = dotenv.config({ path: `${__dirname}/.env` });
 
 
-// Create a RFC3339 date string
-const createRFC3339DateString = (date) => {
-    // TODO: always return UTC (Zulu), so just remove 4 or 5 hours depending on DST/EST
-    let str;
-    if (date.length === 10) {
-        str = `${date}T00:00:00Z`;
-    } else if (date.length === 16) {
-        // TODO: substract hours
-        str = `${date.substr(0, 10)}T${date.substr(11, 16)}:00Z`;
-    } else {
-        throw Error(`Invalid date format: '${date}'`);
-    }
-    return str;
-};
-
 const printUsage = () => {
     console.log('Usage:');
     console.log(
@@ -146,22 +131,19 @@ class TradeActivity {
 (async () => {
     
     
-    let options;
-    if (argv.start && argv.end) {
-        options = {
-            start: createRFC3339DateString(argv.start),
-            end: createRFC3339DateString(argv.end)
-        };
-    } else if (argv.days) {
-        options = {            
-            start: new Date(new Date().getTime() - argv.days * 24 * 60 * 60 * 1000), // start 'days' ago
-            end: new Date().toISOString() // end now
-        };
-    } else {
-        options = {
-            start: new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000), // 30 days default
-            end: new Date().toISOString()
-        };
+    const options = {};
+    if (argv.days) {
+        options.after = new Date(new Date().getTime() - argv.days * 24 * 60 * 60 * 1000); // start 'days' ago
+    }
+    if (argv.date) {
+        options.date = new Date(argv.date);
+    }
+    if (argv.start) {
+        options.after = new Date(argv.start);
+    } 
+    if (argv.end) {
+        // TODO: filter trades after fetching all instead
+        //options.until = new Date(argv.end); 
     }
 
     const alpaca = new Alpaca({
@@ -171,19 +153,18 @@ class TradeActivity {
         usePolygon: false
     });
     const activityTypes = 'FILL';
-    const max_limit = 500;
+    const max_limit = 2000;
     const pageSize = 100;
     const trades = [];
     const tradesBySymbol = {};
     const closedTrades = [];
     
     try {
-        let pageToken = undefined; // TODO: pagination only when date is not specified?
+        let pageToken = undefined;
         let activities = [];
         do {            
-            activities = await alpaca.getAccountActivities({ activityTypes, pageSize, pageToken });
-            logger.debug(`getAccount(${activityTypes}, ${pageSize}, ${pageToken}): ${activities.length} activities`);
-
+            activities = await alpaca.getAccountActivities({ activityTypes, pageSize, pageToken, after: options.after, date: options.date, before: options.before  });
+            logger.debug(`getAccount(${Object.entries(options).map(([key, value]) => `${key}=${value}`).join(',')})`);
             for (let activity of activities) {
                 const t = new TradeActivity(activity);
                 trades.push(t);
