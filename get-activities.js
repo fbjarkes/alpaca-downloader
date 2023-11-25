@@ -23,7 +23,7 @@ const { parsed: cfg } = dotenv.config({ path: `${__dirname}/.env` });
 const printUsage = () => {
     console.log('Usage:');
     console.log(
-        './activites.js ...'
+        './get-activities.js [-v] --date|--start|--end <YYYY-MM-DD>'
     );
 };
 
@@ -117,13 +117,16 @@ class TradeActivity {
     const options = {
         activityTypes: 'FILL',
         pageToken: undefined,
-        pageSize: 100,
-        //after: days ? new Date(new Date().getTime() - days * 24 * 60 * 60 * 1000) : undefined,
+        pageSize: 100,        
         date: date ? new Date(date) : undefined,
         after: start ? new Date(start) : undefined,
         //until: // TODO: filter trades after fetching all instead
     };
-
+    if (!options.date && !options.after) {
+        options.after = new Date();
+        options.after.setDate(options.after.getDate() - 30);
+    }
+    
     const alpaca = new Alpaca({
         keyId: cfg['KEY_ID'],
         secretKey: cfg['SECRET_KEY'],
@@ -140,9 +143,8 @@ class TradeActivity {
     console.log(`Fetching activities with options: ${JSON.stringify(options)}`);
     try {        
         let activities = [];
-        do {                    
-            //activities = await alpaca.getAccountActivities({ activityTypes: options.activityTypes, pageSize: options.pageSize, pageToken, after: options.after, date: options.date, before: options.before  });
-            activities = await alpaca.getAccountActivities({ activityTypes: options.activityTypes, pageSize: options.pageSize, pageToken: options.pageToken, after: options.after, date: options.date, before: options.before  });
+        do {                                
+            activities = await alpaca.getAccountActivities(options);
             logger.debug(`getAccount(${JSON.stringify(options)})`);
             for (let activity of activities) {
                 const t = new TradeActivity(activity);
