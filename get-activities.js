@@ -1,13 +1,27 @@
 const dotenv = require('dotenv');
 const Alpaca = require('@alpacahq/alpaca-trade-api');
 const logger = require('./logger');
-const argv = require('yargs')
-  .option('verbose', {
-    alias: 'v',
-    describe: 'Enable verbose logging',
+const yargs = require('yargs');
+const { hideBin } = require('yargs/helpers');
+
+// eslint-disable-next-line no-undef
+const argv = yargs(hideBin(process.argv))
+  .option('v', {
+    alias: 'verbose',
     type: 'boolean',
-    default: false,
+    description: 'Run with verbose logging'
   })
+  .option('date', {
+    alias: 'd',
+    type: 'string',
+    description: 'Only activities for this date'
+  })
+  .option('start', {
+    alias: 's',
+    type: 'string',
+    description: 'All activities after this date, e.g. 2023-10-01'
+  })
+  .help('h')
   .argv;
 
 if (argv.verbose) {
@@ -19,13 +33,6 @@ if (argv.verbose) {
 // eslint-disable-next-line no-undef
 const { parsed: cfg } = dotenv.config({ path: `${__dirname}/.env` });
 
-
-const printUsage = () => {
-    console.log('Usage:');
-    console.log(
-        './get-activities.js [-v] --date|--start|--end <YYYY-MM-DD>'
-    );
-};
 
 class ClosedTrade {
     constructor(trade) {
@@ -112,7 +119,8 @@ class TradeActivity {
 
 
 (async () => {
-    
+
+
     const { date, start } = argv;
     const options = {
         activityTypes: 'FILL',
