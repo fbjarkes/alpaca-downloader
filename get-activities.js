@@ -30,32 +30,22 @@ const printUsage = () => {
 class ClosedTrade {    
     constructor({
         symbol,
-        entry_price, // avg entry price
+        entryPrice, // first entry price
+        exitPrice, // last exit price
+        avgEntry,
         qty,
         pnl,
-        entry_date, // first entry
-        exit_date, // last entry
+        entryDate, // first entry
+        exitDate, // last entry
     }) {
         this.symbol = symbol;
-        this.entryPrice = entry_price;
+        this.entryPrice = entryPrice;
+        this.exitPrice = exitPrice;
+        this.avgEntry = avgEntry;
         this.qty = qty;
         this.pnl = pnl;
-        this.entryDate = entry_date;
-        this.exitDate = exit_date;
-    }
-}
-
-class Trade {
-    constructor({
-        price,
-        qty,
-        datetime,
-        type,
-    }) {    
-        this.price = price;
-        this.qty = qty;
-        this.datetime = datetime;
-        this.type = type;
+        this.entryDate = entryDate;
+        this.exitDate = exitDate;
     }
 }
 
@@ -68,6 +58,8 @@ class OpenTrade {
     lastEntryDate = null;
     avgCostPerUnit = 0;
     totalCost = 0;
+    exitPrice = 0; // last entry price
+    entryPrice= 0; // first entry price
 
     constructor(symbol) {
         this.symbol = symbol;
@@ -76,6 +68,7 @@ class OpenTrade {
     add(tradeActivity) {                        
         if (this.qty === 0) {
             this.firstEntryDate = tradeActivity.transactionTime;
+            this.entryPrice = tradeActivity.price;
         }        
         this.qty += tradeActivity.qty;
         this.totalCost += (tradeActivity.qty * tradeActivity.price);
@@ -85,12 +78,11 @@ class OpenTrade {
 
     reduce(tradeActivity) {        
         const pnl = tradeActivity.qty * (tradeActivity.price - this.avgCostPerUnit);
-        
-
         this.totalPnl += pnl;        
         this.qty -= tradeActivity.qty;        
         if (this.qty === 0) {
             this.lastEntryDate = tradeActivity.transactionTime;
+            this.exitPrice = tradeActivity.price;
         }        
     }
 }
@@ -131,7 +123,10 @@ class TradeActivity {
 (async () => {
     
     
-    const options = {};
+    const options = {
+        activityTypes: 'FILL',
+        pageSize: 100,
+    };
     if (argv.days) {
         options.after = new Date(new Date().getTime() - argv.days * 24 * 60 * 60 * 1000); // start 'days' ago
     }
@@ -152,18 +147,20 @@ class TradeActivity {
         paper: true,
         usePolygon: false
     });
-    const activityTypes = 'FILL';
-    const max_limit = 2000;
-    const pageSize = 100;
+    //options.activityTypes = 'FILL'
+    //const activityTypes = 'FILL';    
+    const max_limit = 100_000; // TODO: needed?
+    //const pageSize = 100;
     const trades = [];
     const tradesBySymbol = {};
     const closedTrades = [];
     
+    console.log(`Fetching activities with options: ${Object.entries(options).map(([key, value]) => `${key}=${value}`).join(',')}`);
     try {
         let pageToken = undefined;
         let activities = [];
-        do {            
-            activities = await alpaca.getAccountActivities({ activityTypes, pageSize, pageToken, after: options.after, date: options.date, before: options.before  });
+        do {                    
+            activities = await alpaca.getAccountActivities({ activityTypes: options.activityTypes, pageSize: options.pageSize, pageToken, after: options.after, date: options.date, before: options.before  });
             logger.debug(`getAccount(${Object.entries(options).map(([key, value]) => `${key}=${value}`).join(',')})`);
             for (let activity of activities) {
                 const t = new TradeActivity(activity);
@@ -195,9 +192,9 @@ class TradeActivity {
                         openTrade.reduce(tradeActivity);
                     }
                     if (openTrade.qty === 0) {
-                        const c = new ClosedTrade({entry_date: openTrade.firstEntryDate, exit_date: openTrade.lastEntryDate, 
+                        const c = new ClosedTrade({entryDate: openTrade.firstEntryDate, exitDate: openTrade.lastEntryDate, 
                             symbol: symbol, qty: openTrade.totalQty, pnl: openTrade.totalPnl, 
-                            avgEntry: openTrade.avgCostPerUnit});
+                            avgEntry: openTrade.avgCostPerUnit, entryPrice: openTrade.entryPrice, exitPrice: openTrade.exitPrice});
                         logger.debug(`${symbol}: ClosedTrade: ${c.qty} @ ${c.entryPrice} -> ${c.exitPrice} = ${c.pnl}`);
                         closedTrades.push(c);
                         openTrade = null;
