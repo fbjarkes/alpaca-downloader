@@ -43,8 +43,8 @@ class ClosedTrade {
       this.avgEntry = avgEntry;
       this.qty = qty;
       this.pnl = pnl;
-      this.entryDate = entryDate;
-      this.exitDate = exitDate;
+      this.entryDate = new Date(entryDate);
+      this.exitDate = new Date(exitDate);
     }
 }
 
@@ -213,8 +213,12 @@ class TradeActivity {
         let totalPnl = 0;
         let wins = 0;
         let losses = 0;
+        closedTrades.sort((a, b) => a.exitDate - b.exitDate);
         closedTrades.forEach((closedTrade) => {
-            console.log(`[${closedTrade.symbol}] ${closedTrade.entryDate}-${closedTrade.exitDate}:  ${closedTrade.qty} @ ${closedTrade.entryPrice} -> ${closedTrade.exitPrice} = ${closedTrade.pnl}`);
+            let entryDateFormatted = `${closedTrade.entryDate.toISOString().substr(0, 19).replace('T', ' ')}`;
+            let exitDateFormatted = `${closedTrade.exitDate.toISOString().substr(0, 19).replace('T', ' ')}`;
+        
+            console.log(`[${entryDateFormatted} - ${exitDateFormatted}] ${closedTrade.symbol} ${closedTrade.qty} @ ${closedTrade.entryPrice} -> ${closedTrade.exitPrice} = ${closedTrade.pnl}`);
             totalPnl += closedTrade.pnl;
             if (closedTrade.pnl > 0) {
                 wins++;
