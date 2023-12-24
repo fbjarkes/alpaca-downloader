@@ -1,4 +1,5 @@
 const dotenv = require('dotenv');
+const fs = require('fs');
 const Alpaca = require('@alpacahq/alpaca-trade-api');
 const logger = require('./logger');
 const yargs = require('yargs');
@@ -128,8 +129,15 @@ class TradeActivity {
 }
 
 
-const write_csv = async (activities, filename) => {    
-    console.log(`Wrote '${filename}.csv' (${activities.length} lines)`);
+const write_csv = async (trades, filename) => {    
+    const header = ['entryDate', 'exitDate', 'symbol', 'qty', 'entryPrice', 'exitPrice', 'pnl'];
+    const rows = trades.map(trade => {
+        return [`${trade.entryDate.toISOString().substr(0, 19).replace('T', ' ')}`, `${trade.exitDate.toISOString().substr(0, 19).replace('T', ' ')}`, trade.symbol, trade.qty, trade.entryPrice, trade.exitPrice, trade.pnl];
+    });
+    
+    const csvContent = header.join(',') + '\n' + rows.map(e => e.join(',')).join('\n');
+    fs.writeFileSync(`${filename}.csv`, csvContent);
+    console.log(`Wrote '${filename}.csv' (${trades.length} lines)`);
 }
 
 const plot_trades = async (activities) => {
