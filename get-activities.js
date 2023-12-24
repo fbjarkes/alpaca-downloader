@@ -21,6 +21,16 @@ const argv = yargs(hideBin(process.argv))
     type: 'string',
     description: 'All activities after this date, e.g. 2023-10-01'
   })
+  .option('plot', {
+    alias: 'p',
+    type: 'boolean',
+    description: 'Plot the activities'
+  })
+  .option('csv', {
+    alias: 'c',
+    type: 'boolean',
+    description: 'Write a csv file with trade activities'
+  })
   .help('h')
   .argv;
 
@@ -115,8 +125,16 @@ class TradeActivity {
       this.orderStatus = order_status;
     }
 
-  }
+}
 
+
+const write_csv = async (activities, filename) => {    
+    console.log(`Wrote '${filename}.csv' (${activities.length} lines)`);
+}
+
+const plot_trades = async (activities) => {
+    console.log(`Plotting ${activities.length} trades...`);
+}
 
 (async () => {
 
@@ -231,6 +249,14 @@ class TradeActivity {
         console.log(`Total PnL: ${totalPnl}`);
         console.log(`Winrate (%): ${(wins / (wins + losses)) * 100}`);
         console.log(`Total trades: ${closedTrades.length}`);
+
+        if (argv.csv) {
+            await write_csv(closedTrades, 'trades');
+        }
+
+        if (argv.plot) {            
+            await plot_trades(closedTrades);
+        }
 
     } catch (error) {
         logger.error(error); 
